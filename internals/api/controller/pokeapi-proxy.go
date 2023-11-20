@@ -14,6 +14,8 @@ import (
 func ProxyPokeapi(c *gin.Context) {
 	path := c.Param("path")
 
+	//
+
 	//check if we have the data in our database
 	//if we have it, return it
 	//if we don't have it, fetch it from pokeapi and save it to our database

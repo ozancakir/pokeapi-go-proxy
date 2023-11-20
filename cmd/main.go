@@ -28,6 +28,7 @@ func main() {
 	if gin.Mode() == gin.DebugMode {
 		r.Use(gin.Logger())
 	}
+	r.ForwardedByClientIP = true
 	r.Use(gin.Recovery())
 
 	api.Setup(r)
