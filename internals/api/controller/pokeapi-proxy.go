@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -12,7 +13,9 @@ import (
 )
 
 func ProxyPokeapi(c *gin.Context) {
-	path := c.Param("path")
+
+	// get fullpath including query params
+	fullpath := c.Request.URL.String()
 
 	//check if we have the data in our database
 	//if we have it, return it
@@ -23,7 +26,7 @@ func ProxyPokeapi(c *gin.Context) {
 
 	var r entities.Response
 
-	tx := db.Where("url = ?", path).First(&r)
+	tx := db.Where("url = ?", fullpath).First(&r)
 
 	if tx.Error == nil {
 		// send r.Result as raw json
@@ -31,10 +34,21 @@ func ProxyPokeapi(c *gin.Context) {
 		return
 
 	}
-
+	_prefix := os.Getenv("API_PREFIX")
+	if _prefix == "" {
+		_prefix = "/api"
+	}
 	pokeapi := os.Getenv("POKEAPI_URL")
+	if pokeapi == "" {
+		c.JSON(500, gin.H{
+			"message": "POKEAPI_URL is not set",
+		})
+		return
+	}
 
-	resp, err := http.Get(pokeapi + path)
+	proxyUri := fmt.Sprintf("%s%s", pokeapi, strings.Replace(fullpath, _prefix, "", 1))
+
+	resp, err := http.Get(proxyUri)
 	if err != nil {
 		c.JSON(500, gin.H{
 			"message": err.Error(),
@@ -55,7 +69,7 @@ func ProxyPokeapi(c *gin.Context) {
 	// replace all https://pokeapi.co/api/v2 with /api
 	body = []byte(strings.ReplaceAll(string(body), pokeapi, "/api"))
 	r = entities.Response{
-		Url:        path,
+		Url:        fullpath,
 		Result:     string(body),
 		StatusCode: resp.StatusCode,
 	}
