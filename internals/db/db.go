@@ -26,6 +26,7 @@ func Setup() {
 
 	err = _db.AutoMigrate(
 		&entities.Response{},
+		&entities.Translate{},
 	)
 	if err != nil {
 		log.Fatalln("failed to migrate database")
