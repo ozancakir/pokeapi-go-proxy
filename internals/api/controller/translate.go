@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ozancakir/go-pokeapi-proxy/internals/api/dto"
@@ -50,9 +51,13 @@ func Translate(c *gin.Context) {
 		to = *req.To
 	}
 
-	text = strings.ReplaceAll(text, "\n", " ")
-	text = strings.ReplaceAll(text, "\t", " ")
-	text = strings.ReplaceAll(text, "\r", " ")
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		return r
+	}, text)
+
 	text = strings.Trim(text, " ")
 
 	host := os.Getenv("TRANSLATE_API_HOST")
@@ -153,6 +158,119 @@ func Translate(c *gin.Context) {
 
 	c.JSON(200, gin.H{
 		"result": tr.ResponseData.TranslatedText,
+	})
+
+}
+
+func SetTranslate(c *gin.Context) {
+
+	var req dto.SetTranslateRequest
+
+	err := c.ShouldBind(&req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	text := req.Text
+	if text == "" {
+		c.JSON(400, gin.H{
+			"message": "text is required",
+		})
+		return
+	}
+	from := "en"
+	if req.From != nil {
+		from = *req.From
+	}
+	to := "tr"
+	if req.To != nil {
+		to = *req.To
+	}
+
+	if req.Translation == "" {
+		c.JSON(400, gin.H{
+			"message": "translation is required",
+		})
+		return
+	}
+
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		return r
+	}, text)
+
+	text = strings.Trim(text, " ")
+
+	host := os.Getenv("TRANSLATE_API_HOST")
+	if host == "" {
+		c.JSON(500, gin.H{
+			"message": "TRANSLATE_API_HOST is not set",
+		})
+		return
+	}
+	path := os.Getenv("TRANSLATE_API_PATH")
+	if path == "" {
+		c.JSON(500, gin.H{
+			"message": "TRANSLATE_API_PATH is not set",
+		})
+		return
+	}
+	user := os.Getenv("TRANSLATE_API_USER")
+	if user == "" {
+		c.JSON(500, gin.H{
+			"message": "TRANSLATE_API_USER is not set",
+		})
+		return
+	}
+	pass := os.Getenv("TRANSLATE_API_KEY")
+	if pass == "" {
+		c.JSON(500, gin.H{
+			"message": "TRANSLATE_API_KEY is not set",
+		})
+		return
+	}
+
+	db := db.GetDB()
+
+	_u := url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   path,
+	}
+	_q := _u.Query()
+	_q.Add("q", text)
+	_q.Add("de", user)
+	_q.Add("key", pass)
+	_q.Add("langpair", fmt.Sprintf("%s|%s", from, to))
+	_u.RawQuery = _q.Encode()
+
+	url := _u.String()
+
+	var r entities.Translate
+	tx := db.Where("url = ?", url).First(&r)
+	if tx.Error == nil {
+		// update
+		r.Translation = req.Translation
+		go db.Save(&r)
+		c.JSON(200, gin.H{
+			"result": r.Translation,
+		})
+		return
+	}
+
+	r = entities.Translate{
+		Url:         url,
+		Translation: req.Translation,
+	}
+	go db.Create(&r)
+
+	c.JSON(200, gin.H{
+		"result": r.Translation,
 	})
 
 }

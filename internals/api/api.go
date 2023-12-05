@@ -36,6 +36,7 @@ func Setup(g *gin.Engine) {
 
 	//catch all routes
 	api.POST("/translate", controller.Translate)
+	api.POST("/translate/set", controller.SetTranslate)
 	api.GET("/*path", controller.ProxyPokeapi)
 
 	g.NoRoute(func(c *gin.Context) {
